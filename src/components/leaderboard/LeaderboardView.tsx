@@ -20,19 +20,33 @@ import { useArena } from '../../context/ArenaContext';
 import { TaskCategory } from '../../types';
 
 export const LeaderboardView: React.FC = () => {
-  const { leaderboard, setActiveTab, apiStatus } = useArena();
+  const {
+  leaderboard,
+  setActiveTab,
+  apiStatus,
+  leaderboardModeFilter,
+  setLeaderboardModeFilter
+} = useArena();
   const [selectedCategory, setSelectedCategory] = useState<TaskCategory | 'overall'>('overall');
   const [showFormulaModal, setShowFormulaModal] = useState(false);
 
   // Sort according to category or overall ELO
-  const sortedEntries = [...leaderboard].sort((a, b) => {
-    if (selectedCategory === 'overall') {
-      return b.eloRating - a.eloRating;
-    }
-    const scoreA = a.categoryScores[selectedCategory] || 0;
-    const scoreB = b.categoryScores[selectedCategory] || 0;
-    return scoreB - scoreA;
-  });
+  // Hide untested agents when a specific execution mode is selected
+const visibleEntries = leaderboard.filter(entry =>
+  leaderboardModeFilter === 'all' || entry.hasRecordedRuns
+);
+
+// Sort according to category or overall ELO
+const sortedEntries = [...visibleEntries].sort((a, b) => {
+  if (selectedCategory === 'overall') {
+    return b.eloRating - a.eloRating;
+  }
+
+  const scoreA = a.categoryScores[selectedCategory] || 0;
+  const scoreB = b.categoryScores[selectedCategory] || 0;
+
+  return scoreB - scoreA;
+});
 
   const categories: { id: TaskCategory | 'overall'; label: string }[] = [
     { id: 'overall', label: 'Overall Arena ELO' },
@@ -127,6 +141,54 @@ export const LeaderboardView: React.FC = () => {
         ))}
       </div>
 
+      {/* Benchmark Data Mode Filter */}
+<div className="arena-card rounded-xl p-4 border border-arena-700/60 space-y-3">
+  <div>
+    <h3 className="text-sm font-bold text-white">
+      Benchmark Data Source
+    </h3>
+    <p className="text-xs text-slate-400 mt-1">
+      Compare simulated demonstrations separately from actual AI executions.
+    </p>
+  </div>
+
+  <div className="flex flex-wrap gap-2">
+    {[
+      { id: 'all', label: 'All Results' },
+      { id: 'real', label: 'Real Gemini Runs' },
+      { id: 'demo', label: 'Demo Simulations' }
+    ].map(mode => (
+      <button
+        key={mode.id}
+        onClick={() =>
+          setLeaderboardModeFilter(
+            mode.id as 'all' | 'real' | 'demo'
+          )
+        }
+        className={`px-4 py-2 rounded-lg text-xs font-semibold border transition-all ${
+          leaderboardModeFilter === mode.id
+            ? 'bg-electric-blue/20 text-electric-blue border-electric-blue/50'
+            : 'bg-arena-900 text-slate-400 border-arena-750 hover:text-white'
+        }`}
+      >
+        {mode.label}
+      </button>
+    ))}
+  </div>
+
+  {leaderboardModeFilter === 'demo' && (
+    <p className="text-xs text-amber-300">
+      Demo results are simulated and must not be treated as actual AI performance.
+    </p>
+  )}
+
+  {leaderboardModeFilter === 'real' && (
+    <p className="text-xs text-emerald-300">
+      Showing results from real agent executions only.
+    </p>
+  )}
+</div>
+
       {/* Leaderboard Table Card */}
       <div className="arena-card rounded-2xl border border-arena-700/60 overflow-hidden shadow-2xl">
         <div className="p-5 border-b border-arena-750 flex items-center justify-between">
@@ -165,6 +227,18 @@ export const LeaderboardView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-arena-800 bg-arena-950/40">
+            {sortedEntries.length === 0 && (
+  <tr>
+    <td colSpan={9} className="py-12 text-center">
+      <p className="text-slate-300 font-semibold">
+        No benchmark results available
+      </p>
+      <p className="text-slate-500 text-xs mt-2">
+        Run a benchmark in this execution mode to populate the leaderboard.
+      </p>
+    </td>
+  </tr>
+)}
               {sortedEntries.map((entry, idx) => {
                 const rank = idx + 1;
                 const isTop1 = rank === 1;

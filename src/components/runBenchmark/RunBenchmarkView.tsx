@@ -92,6 +92,23 @@ export const RunBenchmarkView: React.FC = () => {
       setIsLaunching(false);
     }
   };
+    // Fairness checks for the currently selected agents
+  const selectedAgents = agents.filter(agent =>
+    selectedAgentIds.includes(agent.id)
+  );
+
+  const selectedModels = [
+    ...new Set(selectedAgents.map(agent => agent.model))
+  ];
+
+  const toolAccessDiffers =
+    new Set(
+      selectedAgents.map(agent =>
+        [...agent.tools].sort().join('|')
+      )
+    ).size > 1;
+
+  const modelAccessDiffers = selectedModels.length > 1;
 
   return (
     <div className="space-y-6">
@@ -458,6 +475,48 @@ export const RunBenchmarkView: React.FC = () => {
               })}
             </div>
           </div>
+
+                    {/* Benchmark Fairness Notice */}
+          {selectedAgents.length > 1 && (
+            <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 space-y-2">
+              <div className="flex items-center gap-2 text-amber-300 font-semibold text-sm">
+                <AlertTriangle className="w-4 h-4" />
+                Benchmark Fairness Check
+              </div>
+
+              <p className="text-xs text-slate-300">
+                Review these differences before interpreting the results.
+              </p>
+
+              {modelAccessDiffers && (
+                <p className="text-xs text-amber-200">
+                  • Different models are selected. This is a cross-model
+                  comparison, not a strategy-only comparison.
+                </p>
+              )}
+
+              {toolAccessDiffers && (
+                <p className="text-xs text-amber-200">
+                  • Selected agents have different tool access. Tool
+                  availability may influence performance.
+                </p>
+              )}
+
+              {!modelAccessDiffers && !toolAccessDiffers && (
+                <p className="text-xs text-emerald-300">
+                  • Selected agents use the same model and have matching
+                  tool access. Other settings should still be checked.
+                </p>
+              )}
+
+              {executionMode === 'demo' && (
+                <p className="text-xs text-amber-200">
+                  • Demo mode uses predefined simulated scores and traces.
+                  It does not measure actual AI-agent performance.
+                </p>
+              )}
+            </div>
+          )}
 
           {/* Section 2: Task Selection */}
           <div className="space-y-3">

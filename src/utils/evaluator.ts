@@ -443,51 +443,81 @@ function evaluateCodeTask(output: string, task: BenchmarkTask): EvaluationResult
 /**
  * Generic rubric evaluator for research & synthesis tasks or custom user tasks.
  */
-function evaluateGenericRubricTask(output: string, task: BenchmarkTask): EvaluationResult {
-  const normOutput = normalizeText(output);
+
+/**
+ * Generic rubric evaluator for research, synthesis and custom tasks.
+ * Uses exact word matching and proportional criterion scoring.
+ */
+function evaluateGenericRubricTask(
+  output: string,
+  task: BenchmarkTask
+): EvaluationResult {
+  const outputTokens = new Set(
+    normalizeText(output).match(/[a-z0-9]+/g) ?? []
+  );
+
   const matched: string[] = [];
   const unmatched: string[] = [];
   let criteriaScore = 0;
 
   if (task.evaluationCriteria.length === 0) {
     return {
-      score: 80,
-      status: 'pass',
-      verdict: 'SATISFACTORY',
-      feedback: 'Output generated successfully. No strict criteria defined for this task.',
-      matchedCriteria: ['General response generated'],
-      unmatchedCriteria: []
+      score: 0,
+      status: 'fail',
+      verdict: 'FAILED',
+      feedback: 'No evaluation criteria are defined. This task cannot be reliably scored.',
+      matchedCriteria: [],
+      unmatchedCriteria: ['No evaluation criteria defined']
     };
   }
 
-  task.evaluationCriteria.forEach(crit => {
-    // Extract key words from criterion (length > 3, exclude stop words)
-    const words = crit
-      .toLowerCase()
-      .replace(/[^\w\s]/g, '')
-      .split(/\s+/)
-      .filter(w => w.length > 3 && !['with', 'from', 'that', 'this', 'have', 'been', 'must', 'should'].includes(w));
-    
-    if (words.length === 0) {
-      matched.push(crit);
-      criteriaScore += 100 / task.evaluationCriteria.length;
+  const stopWords = new Set([
+    'the', 'and', 'for', 'with', 'from', 'that',
+    'this', 'have', 'been', 'must', 'should',
+    'into', 'their', 'there', 'then', 'than',
+    'your', 'about', 'which', 'when', 'where',
+    'will', 'would', 'could', 'does'
+  ]);
+
+  const pointsPerCriterion = 100 / task.evaluationCriteria.length;
+
+  task.evaluationCriteria.forEach(criterion => {
+    const criterionTokens = [
+      ...new Set(criterion.toLowerCase().match(/[a-z0-9]+/g) ?? [])
+    ].filter(token =>
+      (token.length >= 3 || /^\d+$/.test(token)) &&
+      !stopWords.has(token)
+    );
+
+    if (criterionTokens.length === 0) {
+      unmatched.push(criterion);
       return;
     }
 
-    const matchedWords = words.filter(w => normOutput.includes(w)).length;
-    const ratio = matchedWords / words.length;
+    const matchedCount = criterionTokens.filter(token =>
+      outputTokens.has(token)
+    ).length;
 
-    if (ratio >= 0.35) {
-      matched.push(crit);
-      criteriaScore += 100 / task.evaluationCriteria.length;
+    const coverage = matchedCount / criterionTokens.length;
+
+    // Award proportional points instead of full credit for a partial match.
+    criteriaScore += pointsPerCriterion * coverage;
+
+    if (coverage >= 0.6) {
+      matched.push(criterion);
     } else {
-      unmatched.push(crit);
+      unmatched.push(criterion);
     }
   });
 
-  const finalScore = Math.min(100, Math.max(0, Math.round(criteriaScore)));
+  const finalScore = Math.min(
+    100,
+    Math.max(0, Math.round(criteriaScore))
+  );
+
   return formatEvaluationVerdict(finalScore, matched, unmatched);
 }
+
 
 /**
  * Formats score into structured verdict and descriptive feedback.

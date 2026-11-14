@@ -76,6 +76,103 @@ export const ResultsView: React.FC = () => {
 
   const currentRun: BenchmarkRun | undefined = runs.find(r => r.id === selectedRunId) || filteredRuns[0] || runs[0];
 
+  const downloadBenchmarkFile = (
+    content: string,
+    filename: string,
+    mimeType: string
+  ) => {
+    const blob = new Blob([content], { type: mimeType });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+
+    URL.revokeObjectURL(url);
+  };
+
+  const exportRunAsJSON = () => {
+    if (!currentRun) return;
+
+    const report = {
+      exportedAt: new Date().toISOString(),
+      platform: 'AgentArena',
+      reportType: currentRun.isDemoRun ? 'SIMULATED' : 'REAL_EXECUTION',
+      run: currentRun,
+      agents: runAgents,
+      tasks: runTasks
+    };
+
+    downloadBenchmarkFile(
+      JSON.stringify(report, null, 2),
+      `agentarena-report-${currentRun.id}.json`,
+      'application/json'
+    );
+  };
+
+  const exportRunAsCSV = () => {
+    if (!currentRun) return;
+
+    const escapeCSV = (value: unknown) =>
+      `"${String(value ?? '').replace(/"/g, '""')}"`;
+
+    const headers = [
+      'Run Name',
+      'Execution Mode',
+      'Date',
+      'Agent',
+      'Model',
+      'Task',
+      'Status',
+      'Score',
+      'Latency (ms)',
+      'Prompt Tokens',
+      'Completion Tokens',
+      'Total Tokens',
+      'Estimated Cost (USD)',
+      'Tool Calls',
+      'Simulated'
+    ];
+
+    const rows = currentRun.results.map(result => {
+      const agent = agents.find(a => a.id === result.agentId);
+      const task = tasks.find(t => t.id === result.taskId);
+
+      return [
+        currentRun.name,
+        currentRun.isDemoRun ? 'DEMO' : 'REAL',
+        currentRun.timestamp,
+        agent?.name ?? result.agentId,
+        result.modelUsed ?? agent?.model ?? 'Unknown',
+        task?.title ?? result.taskId,
+        result.status,
+        result.score,
+        result.latencyMs,
+        result.promptTokens,
+        result.completionTokens,
+        result.totalTokens,
+        result.estimatedCostUsd,
+        result.toolCallsCount,
+        result.isSimulated ? 'Yes' : 'No'
+      ];
+    });
+
+    const csv = [
+      headers.map(escapeCSV).join(','),
+      ...rows.map(row => row.map(escapeCSV).join(','))
+    ].join('\n');
+
+    downloadBenchmarkFile(
+      '\uFEFF' + csv,
+      `agentarena-report-${currentRun.id}.csv`,
+      'text/csv;charset=utf-8'
+    );
+  };
+
+
   const runAgents = currentRun ? agents.filter(a => currentRun.agentIds.includes(a.id)) : [];
   const runTasks = currentRun ? tasks.filter(t => currentRun.taskIds.includes(t.id)) : [];
 
@@ -219,6 +316,38 @@ export const ResultsView: React.FC = () => {
               )}
             </div>
           </div>
+
+              {currentRun && (
+                <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-arena-700/60 bg-arena-900/60 p-4">
+                  <div>
+                    <h3 className="text-sm font-bold text-white">
+                      Export Benchmark Report
+                    </h3>
+                    <p className="text-xs text-slate-400 mt-1">
+                      Download the selected run's metrics and execution data.
+                      {currentRun.isDemoRun
+                        ? ' This report contains simulated results.'
+                        : ' This report contains real execution results.'}
+                    </p>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={exportRunAsCSV}
+                      className="px-4 py-2 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-xs font-semibold hover:bg-emerald-500/20"
+                    >
+                      Export CSV
+                    </button>
+
+                    <button
+                      onClick={exportRunAsJSON}
+                      className="px-4 py-2 rounded-lg bg-electric-blue/10 border border-electric-blue/30 text-electric-blue text-xs font-semibold hover:bg-electric-blue/20"
+                    >
+                      Export JSON
+                    </button>
+                  </div>
+                </div>
+              )}
 
           {/* Current Run Scorecard & Metadata */}
           {currentRun ? (
