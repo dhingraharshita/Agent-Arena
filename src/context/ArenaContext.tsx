@@ -44,6 +44,9 @@ interface ArenaContextType {
   // API & Server Status
   apiStatus: ApiStatusResponse | null;
   refreshApiStatus: () => Promise<void>;
+
+  geminiApiKey: string;
+setGeminiApiKey: (key: string) => void;
   
   // Agents
   agents: Agent[];
@@ -114,6 +117,7 @@ const ArenaContext = createContext<ArenaContextType | null>(null);
 export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [activeTab, setActiveTab] = useState<ActiveTab>('overview');
   const [apiStatus, setApiStatus] = useState<ApiStatusResponse | null>(null);
+  const [geminiApiKey, setGeminiApiKey] = useState('');
   const [isStorageReady, setIsStorageReady] = useState(false);
 
   const [agents, setAgents] = useState<Agent[]>(STARTER_AGENTS);
@@ -318,7 +322,7 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     const isRealRun = executionMode === 'real';
 
-    if (isRealRun && !apiStatus?.hasApiKey) {
+    if (isRealRun && !apiStatus?.hasApiKey && !geminiApiKey.trim()) {
       addToast('GEMINI_API_KEY is not configured on the server. Falling back to Demo mode.', 'warning');
       return startBenchmarkRun(selectedAgentIds, selectedTaskIds, runTitle, 'demo');
     }
@@ -394,7 +398,8 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
               agentType,
               task,
               settings.preferredGeminiModel || 'gemini-3.8-flash',
-              agent.temperature
+              agent.temperature,
+geminiApiKey
             );
 
             if (apiResp.success && apiResp.result) {
@@ -547,6 +552,8 @@ export const ArenaProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         isStorageReady,
         apiStatus,
         refreshApiStatus,
+        geminiApiKey,
+setGeminiApiKey,
         agents: computedAgents,
         addAgent,
         updateAgent,

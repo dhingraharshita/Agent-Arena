@@ -24,6 +24,7 @@ export const RunBenchmarkView: React.FC = () => {
     agents, 
     tasks, 
     startBenchmarkRun, 
+    geminiApiKey,
     liveRunningState, 
     cancelLiveRun,
     settings,
@@ -42,9 +43,9 @@ export const RunBenchmarkView: React.FC = () => {
   );
 
   const [runTitle, setRunTitle] = useState('');
-  const [executionMode, setExecutionMode] = useState<'real' | 'demo'>(() => 
-    apiStatus?.hasApiKey ? 'real' : 'demo'
-  );
+  const [executionMode, setExecutionMode] = useState<'real' | 'demo'>(() =>
+  apiStatus?.hasApiKey || geminiApiKey.trim() ? 'real' : 'demo'
+);
   const [isLaunching, setIsLaunching] = useState(false);
   const [showKeySetupModal, setShowKeySetupModal] = useState(false);
 
@@ -226,7 +227,7 @@ export const RunBenchmarkView: React.FC = () => {
             <div className="space-y-1">
               <div className="flex items-center gap-2">
                 <h2 className="text-lg font-bold text-white">Configure Benchmark Matrix</h2>
-                {apiStatus?.hasApiKey ? (
+                {(apiStatus?.hasApiKey || geminiApiKey.trim()) ? (
                   <span className="text-[10px] font-mono px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 flex items-center gap-1">
                     <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
                     <span>GEMINI API READY</span>
@@ -284,11 +285,11 @@ export const RunBenchmarkView: React.FC = () => {
               <div className="flex items-center rounded-xl bg-arena-950 p-1 border border-arena-750">
                 <button
                   onClick={() => {
-                    if (!apiStatus?.hasApiKey) {
-                      setShowKeySetupModal(true);
-                    } else {
-                      setExecutionMode('real');
-                    }
+                    if (!apiStatus?.hasApiKey && !geminiApiKey.trim()) {
+  setShowKeySetupModal(true);
+} else {
+  setExecutionMode('real');
+}
                   }}
                   className={`px-3 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 transition-all ${
                     executionMode === 'real'
@@ -350,7 +351,7 @@ export const RunBenchmarkView: React.FC = () => {
                     Generates reproducible step traces and test scores locally. All resulting rows will be explicitly labeled as DEMO DATA.
                   </p>
                 </div>
-                {!apiStatus?.hasApiKey && (
+                {!apiStatus?.hasApiKey && !geminiApiKey.trim() && (
                   <button
                     onClick={() => setShowKeySetupModal(true)}
                     className="px-3 py-1 rounded-lg bg-amber-500/20 hover:bg-amber-500/30 text-amber-300 font-semibold text-xs border border-amber-500/40 shrink-0 flex items-center gap-1.5 transition-colors"
@@ -653,7 +654,7 @@ export const RunBenchmarkView: React.FC = () => {
               <button
                 onClick={async () => {
                   await refreshApiStatus();
-                  if (apiStatus?.hasApiKey) {
+                  if (apiStatus?.hasApiKey || geminiApiKey.trim()) {
                     setExecutionMode('real');
                     setShowKeySetupModal(false);
                   }

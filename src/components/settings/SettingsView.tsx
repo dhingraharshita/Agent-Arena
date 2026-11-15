@@ -17,6 +17,7 @@ import {
   Cpu
 } from 'lucide-react';
 import { useArena } from '../../context/ArenaContext';
+import { testGeminiApiKey } from '../../services/apiService';
 
 export const SettingsView: React.FC = () => {
   const { 
@@ -28,7 +29,9 @@ export const SettingsView: React.FC = () => {
     runs, 
     addToast,
     apiStatus,
-    refreshApiStatus 
+refreshApiStatus,
+geminiApiKey,
+setGeminiApiKey
   } = useArena();
 
   const [webhookUrl, setWebhookUrl] = useState(settings.customRunnerWebhook);
@@ -36,6 +39,8 @@ export const SettingsView: React.FC = () => {
   const [showResetConfirm, setShowResetConfirm] = useState(false);
   const [weights, setWeights] = useState(settings.evaluationWeights);
   const [selectedModel, setSelectedModel] = useState(settings.preferredGeminiModel || 'gemini-3.8-flash');
+  const [showApiKey, setShowApiKey] = useState(false);
+  const [testingGeminiKey, setTestingGeminiKey] = useState(false);
 
   useEffect(() => {
     setSelectedModel(settings.preferredGeminiModel || 'gemini-3.8-flash');
@@ -76,7 +81,33 @@ export const SettingsView: React.FC = () => {
     URL.revokeObjectURL(url);
     addToast('Benchmark data exported successfully', 'success');
   };
+const handleTestGeminiKey = async () => {
+  if (!geminiApiKey.trim()) {
+    addToast('Enter your Gemini API key first.', 'warning');
+    return;
+  }
 
+  setTestingGeminiKey(true);
+
+  try {
+    const result = await testGeminiApiKey(
+      geminiApiKey,
+      selectedModel
+    );
+
+    addToast(
+      `Gemini connected successfully! Model: ${result.model}`,
+      'success'
+    );
+  } catch (error: any) {
+    addToast(
+      error.message || 'Gemini connection test failed.',
+      'error'
+    );
+  } finally {
+    setTestingGeminiKey(false);
+  }
+};
   return (
     <div className="space-y-6 max-w-4xl">
       {/* Header */}
@@ -149,7 +180,54 @@ export const SettingsView: React.FC = () => {
             </div>
           </div>
         )}
+{/* User Gemini API Key */}
+<div className="p-4 rounded-xl bg-arena-950 border border-arena-750 space-y-3">
+  <div>
+    <h4 className="text-sm font-bold text-white">Use Your Own Gemini API Key</h4>
+    <p className="text-xs text-slate-400 mt-1">
+      Enter your Google AI Studio key to run real Gemini benchmarks.
+    </p>
+  </div>
+  <button
+  type="button"
+  onClick={handleTestGeminiKey}
+  disabled={testingGeminiKey || !geminiApiKey.trim()}
+  className="w-full px-4 py-2 rounded-lg bg-electric-blue text-white text-xs font-semibold hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed transition"
+>
+  {testingGeminiKey ? 'Testing Gemini Connection...' : 'Test Gemini Connection'}
+</button>
 
+  <div className="flex gap-2">
+    <input
+      type={showApiKey ? 'text' : 'password'}
+      value={geminiApiKey}
+      onChange={(e) => setGeminiApiKey(e.target.value)}
+      placeholder="Paste your Gemini API key here"
+      autoComplete="off"
+      className="flex-1 min-w-0 px-3 py-2 rounded-lg bg-arena-900 border border-arena-700 text-white text-xs focus:outline-none focus:border-electric-blue"
+    />
+
+    <button
+      type="button"
+      onClick={() => setShowApiKey(!showApiKey)}
+      className="px-3 py-2 rounded-lg bg-arena-800 border border-arena-700 text-slate-300 text-xs"
+    >
+      {showApiKey ? 'Hide' : 'Show'}
+    </button>
+  </div>
+
+  <p className="text-[11px] text-slate-400">
+    Your key stays in this browser session and is not saved in benchmark data.
+    It will be cleared when you refresh the page.
+  </p>
+
+  {geminiApiKey.trim() && (
+    <p className="text-xs text-emerald-400">
+      <CheckCircle2 className="w-3 h-3 inline mr-1" />
+      API key entered for this session
+    </p>
+  )}
+</div>
         {/* Model Selection */}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 pt-2">
           <div>

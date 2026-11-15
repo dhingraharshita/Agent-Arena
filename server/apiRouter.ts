@@ -1,8 +1,9 @@
 import { IncomingMessage, ServerResponse } from 'http';
-import { 
-  executeDirectAgentWithGemini, 
+import {
+  callGeminiApi,
+  executeDirectAgentWithGemini,
   executePlannerAgentWithGemini,
-  GEMINI_PRICING 
+  GEMINI_PRICING
 } from './geminiService.ts';
 import { evaluateAgentOutput } from '../src/utils/evaluator.ts';
 import type { BenchmarkTask } from '../src/types/index.ts';
@@ -56,21 +57,73 @@ export async function handleApiRequest(req: IncomingMessage, res: ServerResponse
 
   // 1. GET /api/status - Check Gemini API key and configuration
   if (url === '/api/status' || url.startsWith('/api/status?')) {
-    const apiKey = process.env.GEMINI_API_KEY;
+    // Prefer the user's session-provided key; fall back to the server key.
+const authorization = req.headers.authorization || '';
+const userApiKey = authorization.startsWith('Bearer ')
+  ? authorization.slice(7).trim()
+  : '';
+
+const apiKey = userApiKey || process.env.GEMINI_API_KEY || '';
     const hasApiKey = !!(apiKey && apiKey.trim().length > 0 && apiKey.trim() !== 'your_gemini_api_key_here');
     const model = process.env.GEMINI_MODEL || 'gemini-3.8-flash';
 
     sendJsonResponse(res, 200, {
-      status: 'ok',
-      hasApiKey,
+  status: 'ok',
+  hasApiKey,
+  supportsUserApiKey: true,
+  model,
+  provider: 'Google Gemini',
+  supportedAgents: ['Direct Agent', 'Planner Agent'],
+  pricing: GEMINI_PRICING
+});
+    return true;
+  }
+// 2. POST /api/gemini/test - Test a Gemini API key
+if (url === '/api/gemini/test' && req.method === 'POST') {
+  try {
+    const body = await parseJsonBody(req);
+
+    const authorization = req.headers.authorization || '';
+    const userApiKey = authorization.startsWith('Bearer ')
+      ? authorization.slice(7).trim()
+      : '';
+
+    const apiKey = userApiKey || process.env.GEMINI_API_KEY || '';
+
+    if (!apiKey || apiKey === 'your_gemini_api_key_here') {
+      sendJsonResponse(res, 400, {
+        success: false,
+        error: 'Please enter a valid Gemini API key.'
+      });
+      return true;
+    }
+
+    const model = body.model || process.env.GEMINI_MODEL || 'gemini-3.8-flash';
+
+    const result = await callGeminiApi({
+      userPrompt: 'Reply with exactly: AgentArena connection successful.',
       model,
-      provider: 'Google Gemini',
-      supportedAgents: ['Direct Agent', 'Planner Agent'],
-      pricing: GEMINI_PRICING
+      temperature: 0,
+      apiKey,
+      timeoutMs: 60000
+    });
+
+    sendJsonResponse(res, 200, {
+      success: true,
+      message: 'Gemini API connection successful.',
+      model,
+      latencyMs: result.durationMs
+    });
+
+    return true;
+  } catch (err: any) {
+    sendJsonResponse(res, 400, {
+      success: false,
+      error: err.message || 'Gemini connection test failed.'
     });
     return true;
   }
-
+}
   // 2. POST /api/agent/run - Run a single agent against a task with Gemini
   if (url === '/api/agent/run' && req.method === 'POST') {
     try {
@@ -85,7 +138,15 @@ export async function handleApiRequest(req: IncomingMessage, res: ServerResponse
         return true;
       }
 
-      const apiKey = process.env.GEMINI_API_KEY;
+      // Prefer the user's session-provided key; fall back to the server key.
+const authorization = req.headers.authorization || '';
+const userApiKey = authorization.startsWith('Bearer ')
+  ? authorization.slice(7).trim()
+  : '';
+
+
+
+const apiKey = userApiKey || process.env.GEMINI_API_KEY || '';
       if (!apiKey || apiKey.trim().length === 0 || apiKey.trim() === 'your_gemini_api_key_here') {
         sendJsonResponse(res, 400, {
           success: false,
